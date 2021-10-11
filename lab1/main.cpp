@@ -3,58 +3,66 @@
 #include <string>
 #include <vector>
 #include <fstream>
-
-/* */
+#include <sstream>
 
 int main()
 {
+    std::cout << "Enter file name:" << std::endl;
+    std::string fileName;
+    std::cin >> fileName;
     int fd[2];
     pipe(fd);
     int id = fork();
     if (id == -1)
-    {
+        {
         perror("fork error");
         return -1;
-    }
-    else if (id == 0)
-    {
-        printf("[%d] It's child\n", getpid());
-        fflush(stdout);
-        std::vector<int> vec;
-        int res;
-        std::string fileName;
-        read(fd[0], &vec, sizeof(std::vector<int>));
-        read(fd[0], &fileName, sizeof(std::string));
-        for (int i = 0; i < vec.size(); ++i) {
-            if (i == 0) res = vec[i];
-            else if (vec[i] == 0) exit(-1);
-            res /= vec[i];
         }
+    else if (id == 0)
+        {
+        //printf("[%d] It's child\n", getpid());
+        int res;
+        int n = 1;
         std::ofstream out(fileName);
-        out << res;
+        while (read(fd[0], &n, sizeof(int)) && n != 0) {
+            int *p = new int[n];
+            read(fd[0], p, sizeof(int[n]));
+            res = p[0];
+            for (int i = 1; i < n; i++){
+                if (p[i] == 0) exit(-1);
+                res = res / p[i];
+            }
+            std::cout << "res: " << res << std::endl;
+            out << res << std::endl;
+            delete [] p;
+        }
         out.close();
-        write(fd[1], &res, sizeof(int));
         close(fd[0]);
         close(fd[1]);
-    }
+        }
     else
     {
-        printf("[%d] It's parent. Child id: %d\n", getpid(), id);
-        fflush(stdout);
+        //printf("[%d] It's parent. Child id: %d\n", getpid(), id);
         int num;
-        std::string fileName;
-        scanf("%s", &fileName);
+        std::string line;
         std::vector<int> vec;
-        while (std::cin.peek() != '\n') {
-            vec.push_back(num);
+        std::cout << "Enter numbers:" << std::endl;
+        std::cin.ignore();
+        while(std::cin.good() && getline(std::cin, line)){
+            std::stringstream inp(line);
+            while (inp >> num) {
+                vec.push_back(num);
+            }
+            int n = vec.size();
+            int *p = new int[n];
+            for (int i = 0; i < vec.size(); i++){
+                p[i] = vec[i];
+            }
+            write(fd[1], &n, sizeof(int));
+            write(fd[1], p, sizeof(int[n]));
+            std::vector<int>().swap(vec);
+            delete [] p;
         }
-        write(fd[1], &vec, sizeof(std::vector<int>));
-        write(fd[1], &fileName, sizeof(std::string));
-
-        int res;
-        read(fd[0], &res, sizeof(int));
-        printf("[%d] Result from child: %d\n", getpid(), res);
-        fflush(stdout);
         close(fd[0]);
         close(fd[1]);
     }
